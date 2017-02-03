@@ -224,29 +224,26 @@ public class MappingCouchbaseConverter extends AbstractCouchbaseConverter
     final R instance = instantiator.createInstance(entity, provider);
     final ConvertingPropertyAccessor accessor = getPropertyAccessor(instance);
 
-    entity.doWithProperties(new PropertyHandler<CouchbasePersistentProperty>() {
-      @Override
-      public void doWithPersistentProperty(final CouchbasePersistentProperty prop) {
-        if (!doesPropertyExistInSource(prop) || entity.isConstructorArgument(prop)) {
-          return;
-        }
-        Optional<Object> obj = prop.isIdProperty() ? Optional.ofNullable(source.getId()) : getValueInternal(prop, source, instance);
-        accessor.setProperty(prop, obj);
+    entity.getPersistentProperties().filter(prop -> {
+
+      if (!(prop.isIdProperty() || source.containsKey(prop.getFieldName())) || entity.isConstructorArgument(prop)) {
+        return false;
       }
 
-      private boolean doesPropertyExistInSource(final CouchbasePersistentProperty property) {
-        return property.isIdProperty() || source.containsKey(property.getFieldName());
-      }
+      return true;
+    }).forEach(prop -> {
+
+      Optional<Object> obj = prop.isIdProperty() ? Optional.ofNullable(source.getId()) : getValueInternal(prop, source, instance);
+      accessor.setProperty(prop, obj);
     });
 
-    entity.doWithAssociations(new AssociationHandler<CouchbasePersistentProperty>() {
-      @Override
-      public void doWithAssociation(final Association<CouchbasePersistentProperty> association) {
-        CouchbasePersistentProperty inverseProp = association.getInverse();
-        Optional<Object> obj = getValueInternal(inverseProp, source, instance);
-        accessor.setProperty(inverseProp, obj);
-      }
+    entity.getAssociations().forEach(association -> {
+      CouchbasePersistentProperty inverseProp = association.getInverse();
+      Optional<Object> obj = getValueInternal(inverseProp, source, instance);
+      accessor.setProperty(inverseProp, obj);
+
     });
+
 
     return instance;
   }
@@ -448,43 +445,39 @@ public class MappingCouchbaseConverter extends AbstractCouchbaseConverter
     }
     target.setExpiration(entity.getExpiry());
 
-    entity.doWithProperties(new PropertyHandler<CouchbasePersistentProperty>() {
-      @Override
-      public void doWithPersistentProperty(final CouchbasePersistentProperty prop) {
+    entity.getPersistentProperties().filter(prop -> {
 
-        if (idProperty.filter(prop::equals).isPresent()) {
-          return;
-        }
-
-        if (versionProperty.filter(prop::equals).isPresent()) {
-          return;
-        }
-
-        if (enableStrictFieldChecking && !prop.isAnnotationPresent(Field.class)) {
-          return;
-        }
-
-        Optional<Object> propertyObj = accessor.getProperty(prop, (Class) prop.getType());
-        propertyObj.ifPresent(o -> {
-          if (!conversions.isSimpleType(o.getClass())) {
-            writePropertyInternal(o, target, prop);
-          } else {
-            writeSimpleInternal(o, target, prop.getFieldName());
-          }
-        });
+      if (idProperty.filter(prop::equals).isPresent()) {
+        return false;
       }
+
+      if (versionProperty.filter(prop::equals).isPresent()) {
+        return false;
+      }
+
+      if (enableStrictFieldChecking && !prop.isAnnotationPresent(Field.class)) {
+        return false;
+      }
+      return true;
+    }).forEach(prop -> {
+      Optional<Object> propertyObj = accessor.getProperty(prop, (Class) prop.getType());
+      propertyObj.ifPresent(o -> {
+        if (!conversions.isSimpleType(o.getClass())) {
+          writePropertyInternal(o, target, prop);
+        } else {
+          writeSimpleInternal(o, target, prop.getFieldName());
+        }
+      });
     });
 
-    entity.doWithAssociations(new AssociationHandler<CouchbasePersistentProperty>() {
-      @Override
-      public void doWithAssociation(final Association<CouchbasePersistentProperty> association) {
-        CouchbasePersistentProperty inverseProp = association.getInverse();
-        Class<?> type = inverseProp.getType();
-        Optional<Object> propertyObj = accessor.getProperty(inverseProp, (Class) type);
-        propertyObj.ifPresent(o -> {
-          writePropertyInternal(o, target, inverseProp);
-        });
-      }
+
+    entity.getAssociations().forEach(association -> {
+      CouchbasePersistentProperty inverseProp = association.getInverse();
+      Class<?> type = inverseProp.getType();
+      Optional<Object> propertyObj = accessor.getProperty(inverseProp, (Class) type);
+      propertyObj.ifPresent(o -> {
+        writePropertyInternal(o, target, inverseProp);
+      });
     });
 
   }
