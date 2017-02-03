@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors
+ * Copyright 2012-2017 the original author or authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import org.springframework.data.repository.query.ReturnedType;
  *
  * @author Simon Baslé
  * @author Subhashni Balakrishnan
+ * @author Mark Paluch
  */
 public class N1qlUtils {
 
@@ -95,10 +96,10 @@ public class N1qlUtils {
 
     if (returnedType != null && returnedType.needsCustomConstruction()) {
       List<String> properties = returnedType.getInputProperties();
-      CouchbasePersistentEntity<?> entity = converter.getMappingContext().getPersistentEntity(returnedType.getDomainType());
+      CouchbasePersistentEntity<?> entity = converter.getMappingContext().getRequiredPersistentEntity(returnedType.getDomainType());
 
       for (String property : properties) {
-        expList.add(path(bucket, i(entity.getPersistentProperty(property).getFieldName())));
+        expList.add(path(bucket, i(entity.getRequiredPersistentProperty(property).getFieldName())));
       }
     } else {
       expList.add(path(bucket, "*"));
